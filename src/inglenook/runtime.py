@@ -3,23 +3,24 @@ from __future__ import annotations
 from pathlib import Path
 
 from inglenook.config import GateConfig, load_config
-from inglenook.gate import Gate
-from inglenook.nvml import NvidiaSmiReader
+from inglenook.gate import Gate, VramReader
 from inglenook.occupancy import HealthOccupancy, ProbeBusyChecker
 from inglenook.types import EnsureResult, VramSnapshot
 from inglenook.unload import CommandUnloader
+from inglenook.vram import default_reader
 
 
 def read_vram() -> VramSnapshot:
-    return NvidiaSmiReader().read()
+    return default_reader().read()
 
 
-def build_gate(cfg: GateConfig, reader: NvidiaSmiReader | None = None) -> Gate:
-    vram_reader = reader or NvidiaSmiReader()
+def build_gate(cfg: GateConfig, reader: VramReader | None = None) -> Gate:
+    vram_reader = reader or default_reader()
     occupancy = HealthOccupancy(
         registry=cfg.registry,
         reader=vram_reader.read,
         idle_used_mb=cfg.policy.idle_used_mb,
+        occupancy=cfg.policy.occupancy,
     )
     return Gate(
         registry=cfg.registry,

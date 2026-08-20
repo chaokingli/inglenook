@@ -3,8 +3,14 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping
 from typing import Protocol
 
-from inglenook.probes import comfy_is_busy, fetch_json, llama_is_reachable
-from inglenook.types import Backend, Role, VramSnapshot
+from inglenook.probes import (
+    JsonGet,
+    comfy_is_busy,
+    fetch_json,
+    llama_is_reachable,
+    llama_weights_loaded,
+)
+from inglenook.types import Backend, OccupancyKind, Role, VramSnapshot
 
 
 class Occupancy(Protocol):
@@ -22,20 +28,26 @@ class HealthOccupancy:
         reader: Callable[[], VramSnapshot],
         idle_used_mb: int,
         fetcher: Callable[[str], tuple[int, str] | BaseException] | None = None,
+        occupancy: OccupancyKind | str = OccupancyKind.HEALTH,
+        json_get: JsonGet | None = None,
     ) -> None:
         self._registry = registry
         self._reader = reader
         self._idle_used_mb = idle_used_mb
         self._fetcher = fetcher
+        self._occupancy = OccupancyKind(occupancy)
+        self._json_get = json_get
 
     def loaded(self) -> frozenset[str]:
         found: set[str] = set()
-        llama_up = False
+        chat_present = False
         for backend in self._registry.values():
-            if backend.role is Role.CHAT and llama_is_reachable(backend, self._fetcher):
+            if backend.role is not Role.CHAT:
+                continue
+            if self._chat_occupies(backend):
                 found.add(backend.name)
-                llama_up = True
-        if llama_up:
+                chat_present = True
+        if chat_present:
             return frozenset(found)
         try:
             snap = self._reader()
@@ -47,6 +59,11 @@ class HealthOccupancy:
             if backend.role is Role.COMFY and backend.base_url:
                 found.add(backend.name)
         return frozenset(found)
+
+    def _chat_occupies(self, backend: Backend) -> bool:
+        if self._occupancy is OccupancyKind.WEIGHTS:
+            return llama_weights_loaded(backend, json_get=self._json_get)
+        return llama_is_reachable(backend, self._fetcher)
 
 
 class ProbeBusyChecker:

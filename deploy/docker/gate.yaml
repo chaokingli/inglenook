@@ -1,0 +1,38 @@
+# NAS / Docker gate registry.
+# Upstream URLs come from compose environment variables.
+
+gpu:
+  total_mb: 16303
+  idle_used_mb: 2500
+  unknown_used_warn_mb: 4096
+
+policy:
+  exclusive_group: gpu-exclusive
+  occupancy: weights
+  unload_timeout_s: 180
+  poll_interval_ms: 500
+  chat_waits_for_comfy: true
+  generation_waits_for_chat_inflight: true
+  generation_preempts_idle_chat: true
+  stop_unknown: false
+
+backends:
+  qwen38-chat:
+    need_mb: 14600
+    headroom_mb: 800
+    role: chat
+    group: gpu-exclusive
+    unload_kind: llama-unload
+    busy_probe: none
+    base_url: ${LLAMA_CPP_URL}
+    priority: 50
+  ls_comfyui:
+    need_mb: 15000
+    headroom_mb: 800
+    role: comfy
+    group: gpu-exclusive
+    persistent: true
+    unload_kind: comfy-free
+    busy_probe: comfy-queue
+    base_url: ${COMFYUI_URL}
+    priority: 80

@@ -11,3 +11,4 @@ def test_shipped_gate_yaml_loads() -> None:
     assert "qwen38-chat" in cfg.registry
     assert "ls_comfyui" in cfg.registry
     assert cfg.policy.unload_timeout_s == 180
+    assert cfg.policy.occupancy.value == "health"

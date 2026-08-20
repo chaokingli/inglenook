@@ -76,3 +76,16 @@ def test_command_unloader_posts_llama_unload() -> None:
     )
     CommandUnloader(http_post=lambda url, payload: posted.append(url)).unload(backend)
     assert posted == ["http://127.0.0.1:5801/models/unload"]
+
+
+def test_command_unloader_posts_remote_comfy_free() -> None:
+    posted: list[str] = []
+    backend = Backend(
+        name="ls_comfyui",
+        need_mb=1,
+        role=Role.COMFY,
+        unload_kind="comfy-free",
+        base_url="http://192.168.1.10:8188",
+    )
+    CommandUnloader(http_post=lambda url, _payload: posted.append(url)).unload(backend)
+    assert posted == ["http://192.168.1.10:8188/api/free"]

@@ -55,6 +55,29 @@ def test_load_config_from_yaml(tmp_path: Path) -> None:
     assert chat.role is Role.CHAT
     assert chat.required_free_mb == 15400
     assert cfg.registry["ls_comfyui"].persistent is True
+    assert cfg.policy.occupancy.value == "health"
+
+
+def test_load_config_reads_weights_occupancy(tmp_path: Path) -> None:
+    path = tmp_path / "gate.yaml"
+    path.write_text(
+        "policy:\n  occupancy: weights\n"
+        "backends:\n  x:\n    need_mb: 1\n    role: chat\n",
+        encoding="utf-8",
+    )
+    cfg = load_config(path)
+    assert cfg.policy.occupancy.value == "weights"
+
+
+def test_load_config_rejects_unknown_occupancy(tmp_path: Path) -> None:
+    path = tmp_path / "gate.yaml"
+    path.write_text(
+        "policy:\n  occupancy: ping\n"
+        "backends:\n  x:\n    need_mb: 1\n    role: chat\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(ConfigError, match="occupancy"):
+        load_config(path)
 
 
 def test_load_config_rejects_missing_backends(tmp_path: Path) -> None:
@@ -74,13 +97,95 @@ def test_load_config_rejects_bad_need_mb(tmp_path: Path) -> None:
         load_config(path)
 
 
-def test_load_config_rejects_non_local_base_url(tmp_path: Path) -> None:
+def test_load_config_allows_remote_base_url(tmp_path: Path) -> None:
     path = tmp_path / "gate.yaml"
     path.write_text(
-        "backends:\n  x:\n    need_mb: 1\n    base_url: http://8.8.8.8:9\n",
+        "backends:\n  x:\n    need_mb: 1\n    role: chat\n"
+        "    base_url: http://192.168.1.10:8188\n",
         encoding="utf-8",
     )
-    with pytest.raises(ConfigError, match="localhost"):
+    cfg = load_config(path)
+    assert cfg.registry["x"].base_url == "http://192.168.1.10:8188"
+
+
+def test_load_config_rejects_non_http_base_url(tmp_path: Path) -> None:
+    path = tmp_path / "gate.yaml"
+    path.write_text(
+        "backends:\n  x:\n    need_mb: 1\n    base_url: file:///etc/passwd\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(ConfigError, match="http"):
+        load_config(path)
+
+
+def test_load_config_expands_env_placeholders(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("COMFYUI_URL", "http://gpu.lan:8188")
+    monkeypatch.setenv("LLAMA_CPP_URL", "http://gpu.lan:8198")
+    path = tmp_path / "gate.yaml"
+    path.write_text(
+        "backends:\n"
+        "  chat:\n    need_mb: 1\n    role: chat\n"
+        "    base_url: ${LLAMA_CPP_URL}\n"
+        "  ls_comfyui:\n    need_mb: 1\n    role: comfy\n"
+        "    base_url: ${COMFYUI_URL}\n",
+        encoding="utf-8",
+    )
+    cfg = load_config(path)
+    assert cfg.registry["chat"].base_url == "http://gpu.lan:8198"
+    assert cfg.registry["ls_comfyui"].base_url == "http://gpu.lan:8188"
+
+
+def test_load_config_uses_env_default_when_unset(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("OPTIONAL_URL", raising=False)
+    path = tmp_path / "gate.yaml"
+    path.write_text(
+        "backends:\n  x:\n    need_mb: 1\n    role: chat\n"
+        "    base_url: ${OPTIONAL_URL:-http://127.0.0.1:8198}\n",
+        encoding="utf-8",
+    )
+    cfg = load_config(path)
+    assert cfg.registry["x"].base_url == "http://127.0.0.1:8198"
+
+
+def test_load_config_rejects_missing_env(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("MISSING_UPSTREAM", raising=False)
+    path = tmp_path / "gate.yaml"
+    path.write_text(
+        "backends:\n  x:\n    need_mb: 1\n    base_url: ${MISSING_UPSTREAM}\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(ConfigError, match="MISSING_UPSTREAM"):
+        load_config(path)
+
+
+def test_load_config_env_newlines_do_not_reparse_yaml(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("COMFYUI_URL", "http://gpu.lan:8188\nunload_kind: command")
+    path = tmp_path / "gate.yaml"
+    path.write_text(
+        "backends:\n  x:\n    need_mb: 1\n    role: chat\n"
+        "    base_url: ${COMFYUI_URL}\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(ConfigError, match="newlines"):
+        load_config(path)
+
+
+def test_load_config_rejects_base_url_with_path(tmp_path: Path) -> None:
+    path = tmp_path / "gate.yaml"
+    path.write_text(
+        "backends:\n  x:\n    need_mb: 1\n    role: chat\n"
+        "    base_url: http://gpu.lan:8198/v1\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(ConfigError, match="origin"):
         load_config(path)
 
 

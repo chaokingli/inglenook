@@ -2,19 +2,21 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlparse
 
 import yaml
 
 from inglenook.errors import ConfigError
 from inglenook.types import (
     BUSY_PROBES,
+    OCCUPANCY_KINDS,
     UNLOAD_KINDS,
     Backend,
+    OccupancyKind,
     Policy,
     Role,
     parse_backend_name,
 )
+from inglenook.urls import expand_env_tree, require_http_origin
 
 
 class GateConfig:
@@ -26,7 +28,8 @@ class GateConfig:
 def load_config(path: Path) -> GateConfig:
     try:
         raw = yaml.safe_load(path.read_text(encoding="utf-8"))
-    except (OSError, yaml.YAMLError) as exc:
+        raw = expand_env_tree(raw)
+    except (OSError, yaml.YAMLError, ValueError) as exc:
         raise ConfigError(f"cannot read config {path}: {exc}") from exc
     if not isinstance(raw, dict):
         raise ConfigError("config root must be a mapping")
@@ -51,6 +54,9 @@ def load_config(path: Path) -> GateConfig:
 def _parse_policy(gpu_raw: Any, policy_raw: Any) -> Policy:
     gpu = gpu_raw if isinstance(gpu_raw, dict) else {}
     policy = policy_raw if isinstance(policy_raw, dict) else {}
+    occupancy_raw = str(policy.get("occupancy", OccupancyKind.HEALTH.value))
+    if occupancy_raw not in OCCUPANCY_KINDS:
+        raise ConfigError(f"unsupported occupancy: {occupancy_raw}")
     return Policy(
         exclusive_group=str(policy.get("exclusive_group", "gpu-exclusive")),
         idle_used_mb=_int(
@@ -71,6 +77,7 @@ def _parse_policy(gpu_raw: Any, policy_raw: Any) -> Policy:
             policy.get("generation_preempts_idle_chat", True)
         ),
         stop_unknown=bool(policy.get("stop_unknown", False)),
+        occupancy=OccupancyKind(occupancy_raw),
     )
 
 
@@ -89,9 +96,9 @@ def _parse_backend(name: str, body: dict[str, Any]) -> Backend:
         role = Role(role_raw)
     except ValueError as exc:
         raise ConfigError(f"unsupported role: {role_raw}") from exc
-    base_url = str(body.get("base_url", ""))
+    base_url = str(body.get("base_url", "")).strip()
     if base_url:
-        _validate_local_url(base_url)
+        base_url = _validate_http_url(base_url)
     command = body.get("unload_command")
     if not command:
         unload_command: tuple[str, ...] = ()
@@ -116,13 +123,11 @@ def _parse_backend(name: str, body: dict[str, Any]) -> Backend:
     )
 
 
-def _validate_local_url(url: str) -> None:
-    parsed = urlparse(url)
-    if parsed.scheme not in {"http", "https"}:
-        raise ConfigError(f"base_url must be http(s): {url}")
-    host = (parsed.hostname or "").lower()
-    if host not in {"127.0.0.1", "localhost", "::1"}:
-        raise ConfigError("base_url must point at localhost")
+def _validate_http_url(url: str) -> str:
+    try:
+        return require_http_origin(url)
+    except ValueError as exc:
+        raise ConfigError(str(exc)) from exc
 
 
 def _int(value: Any, field: str) -> int:

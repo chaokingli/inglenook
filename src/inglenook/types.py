@@ -8,6 +8,7 @@ _BACKEND_NAME = re.compile(r"^[A-Za-z0-9._-]{1,64}$")
 
 UNLOAD_KINDS = frozenset({"none", "llama-unload", "comfy-free", "command"})
 BUSY_PROBES = frozenset({"none", "comfy-queue", "llama-health"})
+OCCUPANCY_KINDS = frozenset({"health", "weights"})
 
 
 class Role(StrEnum):
@@ -16,6 +17,11 @@ class Role(StrEnum):
     TTS = "tts"
     STT = "stt"
     UNKNOWN = "unknown"
+
+
+class OccupancyKind(StrEnum):
+    HEALTH = "health"
+    WEIGHTS = "weights"
 
 
 class DecisionKind(StrEnum):
@@ -89,6 +95,7 @@ class Policy:
     generation_waits_for_chat_inflight: bool = True
     generation_preempts_idle_chat: bool = True
     stop_unknown: bool = False
+    occupancy: OccupancyKind = OccupancyKind.HEALTH
 
 
 @dataclass(frozen=True)

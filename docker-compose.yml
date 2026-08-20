@@ -1,0 +1,37 @@
+# NAS Docker: inglenook + latest llama-swap in one container.
+# ComfyUI and llama.cpp stay on the GPU server; pass their URLs via .env.
+#
+#   cp .env.example .env
+#   docker compose pull
+#   docker compose up -d
+
+services:
+  inglenook:
+    image: ${INGLENOOK_IMAGE:-ghcr.io/chaokingli/inglenook}:${INGLENOOK_VERSION:-latest}
+    pull_policy: ${INGLENOOK_PULL_POLICY:-always}
+    restart: unless-stopped
+    init: true
+    stop_grace_period: 3m
+    ports:
+      - "${INGLENOOK_BIND:-0.0.0.0}:${INGLENOOK_CHAT_PORT:-9292}:9292"
+      - "${INGLENOOK_BIND:-0.0.0.0}:${INGLENOOK_IMAGE_PORT:-9293}:9293"
+    environment:
+      COMFYUI_URL: ${COMFYUI_URL:?set COMFYUI_URL in .env}
+      LLAMA_CPP_URL: ${LLAMA_CPP_URL:?set LLAMA_CPP_URL in .env}
+      INGLENOOK_VRAM_SOURCE: ${INGLENOOK_VRAM_SOURCE:-comfy}
+      LLAMA_SWAP_LISTEN: 0.0.0.0:9292
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "curl -fsS http://127.0.0.1:9292/health && curl -fsS http://127.0.0.1:9293/healthz",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s

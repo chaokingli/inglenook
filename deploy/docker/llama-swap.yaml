@@ -1,0 +1,79 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/mostlygeek/llama-swap/refs/heads/main/config-schema.json
+#
+# Docker / NAS llama-swap config.
+# Chat/audio: OpenWebUI → http://<NAS-IP>:9292/v1
+# Image/video: OpenWebUI / SillyTavern → http://<NAS-IP>:9293
+#
+# llama.cpp and ComfyUI stay on the GPU server. Point compose at them:
+#   LLAMA_CPP_URL=http://gpu.lan:8198
+#   COMFYUI_URL=http://gpu.lan:8188
+
+healthCheckTimeout: 180
+logLevel: info
+startPort: 5801
+sendLoadingState: true
+globalTTL: 600
+unloadTimeout: 180
+
+upstream:
+  ignorePaths:
+    - '.*\.(js|json|css|png|gif|jpg|jpeg|ico|txt)$'
+    - ^\/ws$|^\/api\/jobs$
+
+models:
+  qwen38-chat:
+    name: "Qwen 27B chat"
+    proxy: "${env.LLAMA_CPP_URL}"
+    aliases:
+      - qwen38-novel
+      - qwen38-code
+      - qwen27-chat
+      - qwen27-novel
+      - qwen27-code
+    cmd: |
+      set -euo pipefail
+      inglenook --config /etc/inglenook/gate.yaml ensure-free --backend ${MODEL_ID}
+      exec tail -f /dev/null
+    cmdStop: |
+      curl -fsS --max-time 10 -X POST "${env.LLAMA_CPP_URL}/models/unload" \
+        -H 'Content-Type: application/json' -d '{}' || true
+    ttl: 600
+    timeouts:
+      responseHeader: 120
+    capabilities:
+      in: [text, image]
+      out: [text]
+
+  ls_comfyui:
+    unlisted: true
+    aliases:
+      - comfyui
+    proxy: "${env.COMFYUI_URL}"
+    checkEndpoint: /system_stats
+    ttl: 0
+    unloadTimeout: 900
+    compat:
+      ignoreWebsockets: true
+    timeouts:
+      connect: 30
+      keepalive: 0
+      responseHeader: 900
+      idleConn: 900
+    cmd: |
+      set -euo pipefail
+      inglenook --config /etc/inglenook/gate.yaml ensure-free --backend ${MODEL_ID}
+      exec /etc/inglenook/scripts/comfy-keepalive.sh
+    cmdStop: |
+      /etc/inglenook/scripts/comfy-free.sh
+
+routing:
+  router:
+    use: group
+    settings:
+      groups:
+        gpu-exclusive:
+          swap: true
+          exclusive: true
+          members:
+            - qwen38-chat
+            - ls_comfyui

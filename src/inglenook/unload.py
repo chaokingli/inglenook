@@ -5,9 +5,9 @@ import subprocess
 import urllib.request
 from collections.abc import Callable, Mapping
 from typing import Any
-from urllib.parse import urlparse
 
 from inglenook.types import Backend
+from inglenook.urls import http_opener, require_http_url
 
 CommandRunner = Callable[[tuple[str, ...]], int]
 HttpPoster = Callable[[str, Mapping[str, Any]], None]
@@ -59,11 +59,9 @@ def _run_command(argv: tuple[str, ...]) -> int:
 
 
 def _http_post_json(url: str, payload: Mapping[str, Any]) -> None:
-    parsed = urlparse(url)
-    if parsed.scheme not in {"http", "https"}:
-        return
-    host = (parsed.hostname or "").lower()
-    if host not in {"127.0.0.1", "localhost", "::1"}:
+    try:
+        require_http_url(url)
+    except ValueError:
         return
     body = json.dumps(payload).encode("utf-8")
     req = urllib.request.Request(  # noqa: S310
@@ -72,7 +70,7 @@ def _http_post_json(url: str, payload: Mapping[str, Any]) -> None:
         method="POST",
         headers={"Content-Type": "application/json"},
     )
-    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+    opener = http_opener()
     try:
         with opener.open(req, timeout=10) as resp:
             resp.read(65536)

@@ -10,6 +10,8 @@
    - image/video: `http://<GPU-LAN-IP>:9293`
 5. Never put `127.0.0.1` in NAS OpenWebUI — that is the NAS.
 
+NAS Compose (`compose.yaml`) runs llama-swap + inglenook on the NAS and talks to the GPU over `COMFYUI_URL` / `LLAMA_CPP_URL`. Frontends then use `http://<NAS-IP>:9292/v1` and `http://<NAS-IP>:9293`.
+
 ## Failures
 
 | Symptom | Likely cause | What to do |

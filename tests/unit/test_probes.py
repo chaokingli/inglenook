@@ -2,7 +2,14 @@ from __future__ import annotations
 
 import pytest
 
-from inglenook.probes import comfy_is_busy, comfy_vram_free_ratio, llama_is_reachable
+from inglenook.probes import (
+    comfy_is_busy,
+    comfy_vram_free_ratio,
+    llama_is_reachable,
+    llama_models_have_weights,
+    llama_props_have_weights,
+    llama_weights_loaded,
+)
 from inglenook.types import Backend, Role
 
 
@@ -73,5 +80,84 @@ def test_llama_is_reachable_uses_health_fetcher() -> None:
     assert llama_is_reachable(backend, fetcher=lambda url: (500, "no")) is False
     down = llama_is_reachable(
         backend, fetcher=lambda url: ConnectionError("down")
+    )
+    assert down is False
+
+
+def test_llama_models_have_weights_from_router_status() -> None:
+    loaded = {
+        "data": [{"id": "qwen38-chat", "status": {"value": "loaded"}}],
+    }
+    sleeping = {
+        "data": [{"id": "qwen38-chat", "status": {"value": "sleeping"}}],
+    }
+    unloaded = {
+        "data": [{"id": "qwen38-chat", "status": {"value": "unloaded"}}],
+    }
+    loading = {
+        "data": [{"id": "qwen38-chat", "status": {"value": "loading"}}],
+    }
+    openai_only = {"data": [{"id": "qwen38-chat", "object": "model"}]}
+    assert llama_models_have_weights(loaded) is True
+    assert llama_models_have_weights(loading) is True
+    assert llama_models_have_weights(sleeping) is False
+    assert llama_models_have_weights(unloaded) is False
+    assert llama_models_have_weights(openai_only) is None
+    assert llama_models_have_weights({}) is None
+
+
+def test_llama_props_have_weights_from_sleep_flag() -> None:
+    assert llama_props_have_weights({"is_sleeping": False}) is True
+    assert llama_props_have_weights({"is_sleeping": True}) is False
+    assert llama_props_have_weights({"model_alias": "x"}) is None
+
+
+def test_llama_weights_loaded_prefers_models_over_health() -> None:
+    backend = Backend(
+        name="qwen38-chat",
+        need_mb=1,
+        role=Role.CHAT,
+        base_url="http://192.168.1.10:8198",
+    )
+
+    def json_get(url: str) -> dict[str, object]:
+        if url.endswith("/models"):
+            return {
+                "data": [{"id": "qwen38-chat", "status": {"value": "unloaded"}}],
+            }
+        if url.endswith("/props"):
+            return {"is_sleeping": False}
+        raise AssertionError(url)
+
+    assert llama_weights_loaded(backend, json_get=json_get) is False
+
+
+def test_llama_weights_loaded_uses_props_when_models_uninformative() -> None:
+    backend = Backend(
+        name="qwen38-chat",
+        need_mb=1,
+        role=Role.CHAT,
+        base_url="http://192.168.1.10:8198",
+    )
+
+    def json_get(url: str) -> dict[str, object]:
+        if url.endswith("/models"):
+            return {"data": [{"id": "qwen38-chat", "object": "model"}]}
+        if url.endswith("/props"):
+            return {"is_sleeping": False}
+        raise AssertionError(url)
+
+    assert llama_weights_loaded(backend, json_get=json_get) is True
+
+
+def test_llama_weights_loaded_false_when_probes_fail() -> None:
+    backend = Backend(
+        name="qwen38-chat",
+        need_mb=1,
+        role=Role.CHAT,
+        base_url="http://192.168.1.10:8198",
+    )
+    down = llama_weights_loaded(
+        backend, json_get=lambda _url: ConnectionError("down")
     )
     assert down is False

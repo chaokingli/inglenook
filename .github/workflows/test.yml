@@ -18,4 +18,4 @@ jobs:
       - name: Test
         run: pytest --cov=inglenook --cov-report=term-missing
       - name: Lint
-        run: ruff check src tests
+        run: ruff check src tests scripts

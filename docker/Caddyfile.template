@@ -1,0 +1,42 @@
+# Split reverse proxy on :9293
+# POST mutating Comfy paths → llama-swap /comfyui/ (triggers swap)
+# Everything else → ComfyUI on the GPU server.
+
+{
+	admin off
+}
+
+:9293 {
+	encode gzip
+	request_body {
+		max_size 64MB
+	}
+
+	@swap {
+		method POST
+		path /prompt /upload/image /interrupt /api/prompt /api/upload/image /api/interrupt
+	}
+
+	handle /healthz {
+		respond "ok" 200
+	}
+
+	handle @swap {
+		rewrite * /comfyui{uri}
+		reverse_proxy 127.0.0.1:9292 {
+			transport http {
+				read_timeout 900s
+				write_timeout 900s
+			}
+		}
+	}
+
+	handle {
+		reverse_proxy {$COMFY_UPSTREAM} {
+			transport http {
+				read_timeout 900s
+				write_timeout 900s
+			}
+		}
+	}
+}
