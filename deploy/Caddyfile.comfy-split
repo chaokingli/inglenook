@@ -1,0 +1,34 @@
+# Split reverse proxy on :9293
+# POST mutating Comfy paths → llama-swap /comfyui/ (triggers swap)
+# GET /prompt, /ws, /history, /view, /object_info → 127.0.0.1:8188
+
+:9293 {
+	encode gzip
+	request_body {
+		max_size 64MB
+	}
+
+	@swap {
+		method POST
+		path /prompt /upload/image /interrupt /api/prompt /api/upload/image /api/interrupt
+	}
+
+	handle @swap {
+		rewrite * /comfyui{uri}
+		reverse_proxy 127.0.0.1:9292 {
+			transport http {
+				read_timeout 900s
+				write_timeout 900s
+			}
+		}
+	}
+
+	handle {
+		reverse_proxy 127.0.0.1:8188 {
+			transport http {
+				read_timeout 900s
+				write_timeout 900s
+			}
+		}
+	}
+}

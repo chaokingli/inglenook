@@ -1,0 +1,17 @@
+[Unit]
+Description=llama-swap OpenAI-compatible model swapper
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/dev/inglenook
+Environment=PYTHONPATH=%h/dev/inglenook/src
+EnvironmentFile=-%h/.config/inglenook/env
+ExecStart=%h/.local/bin/llama-swap --config %h/dev/inglenook/deploy/llama-swap.yaml --listen 0.0.0.0:9292
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+
+[Install]
+WantedBy=default.target

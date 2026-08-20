@@ -1,0 +1,160 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/mostlygeek/llama-swap/refs/heads/main/config-schema.json
+#
+# llama-swap config for this GPU machine.
+# Chat/audio: OpenWebUI / SillyTavern → http://<GPU-LAN-IP>:9292/v1
+# Image/video: those frontends → http://<GPU-LAN-IP>:9293 (split proxy, not /v1)
+#
+# Do not point NAS OpenWebUI at 127.0.0.1 — that is the NAS, not this GPU box.
+# Keep existing llama.cpp :8198 as rollback. Frontends should stop using it.
+
+healthCheckTimeout: 180
+logLevel: info
+startPort: 5801
+sendLoadingState: true
+globalTTL: 600
+unloadTimeout: 180
+
+macros:
+  inglenook_home: "${env.HOME}/dev/inglenook"
+  llama_server: "${env.HOME}/llama.cpp/bin/llama-server"
+  ensure_free: "env PYTHONPATH=${inglenook_home}/src python3 -m inglenook --config ${inglenook_home}/deploy/gate.yaml ensure-free --backend"
+  # Absolute GGUF paths. Set these in the environment; do not put vendor dirs here.
+  qwen38_model: "${env.QWEN38_MODEL}"
+  qwen38_mmproj: "${env.QWEN38_MMPROJ}"
+  qwen27_model: "${env.QWEN27_MODEL}"
+  qwen27_mmproj: "${env.QWEN27_MMPROJ}"
+  llama_common: "--host 127.0.0.1 --offline --flash-attn on --cache-prompt --jinja --n-gpu-layers auto --cache-type-k q8_0 --cache-type-v q8_0"
+
+upstream:
+  ignorePaths:
+    - '.*\.(js|json|css|png|gif|jpg|jpeg|ico|txt)$'
+    - ^\/ws$|^\/api\/jobs$
+
+models:
+  qwen38-chat:
+    name: "Qwen3.8 27B chat"
+    cmd: |
+      set -euo pipefail
+      ${ensure_free} ${MODEL_ID}
+      ${llama_server} --port ${PORT} ${llama_common}
+      --model ${qwen38_model} --mmproj ${qwen38_mmproj}
+      --batch-size 2048 --ubatch-size 512 --ctx-size 65536 --n-predict -1
+      --temp 0.45 --top-k 40 --top-p 0.9 --min-p 0.05
+      --repeat-last-n 512 --repeat-penalty 1.08
+      --dry-multiplier 0.2 --dry-base 1.75 --dry-allowed-length 4 --dry-penalty-last-n 1024
+      --reasoning off
+    ttl: 600
+    timeouts:
+      responseHeader: 120
+    capabilities:
+      in: [text, image]
+      out: [text]
+      context: 65536
+
+  qwen38-novel:
+    name: "Qwen3.8 27B novel"
+    cmd: |
+      set -euo pipefail
+      ${ensure_free} ${MODEL_ID}
+      ${llama_server} --port ${PORT} ${llama_common}
+      --model ${qwen38_model} --mmproj ${qwen38_mmproj}
+      --batch-size 2048 --ubatch-size 512 --ctx-size 98304 --n-predict -1
+      --temp 0.7 --top-k 40 --top-p 0.9 --min-p 0.05
+      --repeat-last-n 512 --repeat-penalty 1.1
+      --presence-penalty 0.1 --frequency-penalty 0.05
+      --dry-multiplier 0.5 --dry-base 1.75 --dry-allowed-length 4 --dry-penalty-last-n 1024
+      --reasoning off
+    ttl: 600
+    timeouts:
+      responseHeader: 120
+
+  qwen38-code:
+    name: "Qwen3.8 27B code"
+    cmd: |
+      set -euo pipefail
+      ${ensure_free} ${MODEL_ID}
+      ${llama_server} --port ${PORT} ${llama_common}
+      --model ${qwen38_model} --mmproj ${qwen38_mmproj}
+      --batch-size 2048 --ubatch-size 512 --ctx-size 131072 --n-predict -1
+      --temp 1.0 --top-k 20 --top-p 0.95 --min-p 0.0
+      --repeat-penalty 1.0 --dry-multiplier 0.0
+      --reasoning on --reasoning-budget -1 --reasoning-effort medium
+    ttl: 600
+    timeouts:
+      responseHeader: 120
+
+  qwen27-chat:
+    name: "Qwen3.6 27B chat"
+    cmd: |
+      set -euo pipefail
+      ${ensure_free} ${MODEL_ID}
+      ${llama_server} --port ${PORT} ${llama_common}
+      --model ${qwen27_model} --mmproj ${qwen27_mmproj}
+      --batch-size 2048 --ubatch-size 512 --ctx-size 65536 --n-predict 2048
+      --temp 0.45 --top-k 40 --top-p 0.9 --min-p 0.05
+      --spec-type draft-mtp --spec-draft-n-max 1 --spec-draft-n-min 1
+      --reasoning off
+    ttl: 600
+
+  qwen27-novel:
+    name: "Qwen3.6 27B novel"
+    cmd: |
+      set -euo pipefail
+      ${ensure_free} ${MODEL_ID}
+      ${llama_server} --port ${PORT} ${llama_common}
+      --model ${qwen27_model} --mmproj ${qwen27_mmproj}
+      --batch-size 2048 --ubatch-size 512 --ctx-size 98304 --n-predict 3072
+      --temp 0.7 --top-k 40 --top-p 0.9 --min-p 0.05
+      --spec-type draft-mtp --spec-draft-n-max 1 --spec-draft-n-min 1
+      --reasoning off
+    ttl: 600
+
+  qwen27-code:
+    name: "Qwen3.6 27B code"
+    cmd: |
+      set -euo pipefail
+      ${ensure_free} ${MODEL_ID}
+      ${llama_server} --port ${PORT} ${llama_common}
+      --model ${qwen27_model} --mmproj ${qwen27_mmproj}
+      --batch-size 2048 --ubatch-size 512 --ctx-size 131072 --n-predict 8192
+      --temp 1.0 --top-k 20 --top-p 0.95 --min-p 0.0
+      --spec-type draft-mtp --spec-draft-n-max 1 --spec-draft-n-min 1
+      --reasoning on --reasoning-budget -1 --reasoning-effort medium
+    ttl: 600
+
+  ls_comfyui:
+    unlisted: true
+    proxy: http://127.0.0.1:8188
+    checkEndpoint: /system_stats
+    ttl: 0
+    unloadTimeout: 900
+    compat:
+      ignoreWebsockets: true
+    timeouts:
+      connect: 30
+      keepalive: 0
+      responseHeader: 900
+      idleConn: 900
+    cmd: |
+      set -euo pipefail
+      ${ensure_free} ${MODEL_ID}
+      ${inglenook_home}/deploy/scripts/comfy-keepalive.sh
+    cmdStop: |
+      ${inglenook_home}/deploy/scripts/comfy-free.sh
+
+routing:
+  router:
+    use: group
+    settings:
+      groups:
+        gpu-exclusive:
+          swap: true
+          exclusive: true
+          members:
+            - qwen38-chat
+            - qwen38-novel
+            - qwen38-code
+            - qwen27-chat
+            - qwen27-novel
+            - qwen27-code
+            - ls_comfyui

@@ -1,0 +1,13 @@
+[Unit]
+Description=ComfyUI (localhost only; traffic enters via :9293)
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=%h/comfy/start-comfyui.sh minimax --listen 127.0.0.1
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=60
+
+[Install]
+WantedBy=default.target
