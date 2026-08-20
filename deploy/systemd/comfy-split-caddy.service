@@ -1,0 +1,13 @@
+[Unit]
+Description=ComfyUI split reverse proxy on :9293 (Caddy)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/caddy run --config %h/dev/inglenook/deploy/Caddyfile.comfy-split --adapter caddyfile
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=default.target

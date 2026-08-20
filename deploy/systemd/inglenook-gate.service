@@ -1,0 +1,14 @@
+[Unit]
+Description=Inglenook VRAM gate HTTP sidecar (localhost only)
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/dev/inglenook
+Environment=PYTHONPATH=%h/dev/inglenook/src
+ExecStart=/usr/bin/python3 -m inglenook --config %h/dev/inglenook/deploy/gate.yaml serve --host 127.0.0.1 --port 9300
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=default.target

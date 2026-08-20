@@ -1,0 +1,92 @@
+# VRAM gate registry for RTX 5070 Ti (16303 MiB).
+# Used by `inglenook ensure-free` before llama-swap starts a model.
+
+gpu:
+  total_mb: 16303
+  idle_used_mb: 2500
+  unknown_used_warn_mb: 4096
+
+policy:
+  exclusive_group: gpu-exclusive
+  unload_timeout_s: 180
+  poll_interval_ms: 500
+  chat_waits_for_comfy: true
+  generation_waits_for_chat_inflight: true
+  generation_preempts_idle_chat: true
+  stop_unknown: false
+
+backends:
+  qwen38-chat:
+    need_mb: 14600
+    headroom_mb: 800
+    role: chat
+    group: gpu-exclusive
+    unload_kind: llama-unload
+    busy_probe: none
+    base_url: http://127.0.0.1:5801
+    priority: 50
+  qwen38-novel:
+    need_mb: 14800
+    headroom_mb: 800
+    role: chat
+    group: gpu-exclusive
+    unload_kind: llama-unload
+    base_url: http://127.0.0.1:5802
+    priority: 50
+  qwen38-code:
+    need_mb: 15000
+    headroom_mb: 800
+    role: chat
+    group: gpu-exclusive
+    unload_kind: llama-unload
+    base_url: http://127.0.0.1:5803
+    priority: 50
+  qwen27-chat:
+    need_mb: 14500
+    headroom_mb: 800
+    role: chat
+    group: gpu-exclusive
+    unload_kind: llama-unload
+    base_url: http://127.0.0.1:5804
+    priority: 50
+  qwen27-novel:
+    need_mb: 14800
+    headroom_mb: 800
+    role: chat
+    group: gpu-exclusive
+    unload_kind: llama-unload
+    base_url: http://127.0.0.1:5805
+    priority: 50
+  qwen27-code:
+    need_mb: 15000
+    headroom_mb: 800
+    role: chat
+    group: gpu-exclusive
+    unload_kind: llama-unload
+    base_url: http://127.0.0.1:5806
+    priority: 50
+  ls_comfyui:
+    need_mb: 15000
+    headroom_mb: 800
+    role: comfy
+    group: gpu-exclusive
+    persistent: true
+    unload_kind: comfy-free
+    busy_probe: comfy-queue
+    base_url: http://127.0.0.1:8188
+    priority: 80
+  tts-heavy:
+    need_mb: 4000
+    headroom_mb: 500
+    role: tts
+    group: parked
+    unload_kind: none
+    priority: 10
+  whisper-cpu:
+    need_mb: 0
+    headroom_mb: 0
+    role: stt
+    group: always-cpu
+    persistent: true
+    unload_kind: none
+    priority: 0
