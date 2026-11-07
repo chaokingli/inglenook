@@ -44,7 +44,7 @@ def test_docker_gate_yaml_uses_upstream_env_placeholders() -> None:
     )
     assert data["backends"]["ls_comfyui"]["base_url"] == "http://gpu:8188"
     assert data["backends"]["ls_comfyui"]["unload_kind"] == "comfy-free"
-    chat = data["backends"]["qwen38-chat"]
+    chat = data["backends"]["qwen35-voice"]
     assert chat["base_url"] == "http://gpu:8198"
     assert chat["unload_kind"] == "llama-unload"
 
@@ -52,17 +52,34 @@ def test_docker_gate_yaml_uses_upstream_env_placeholders() -> None:
 def test_docker_llama_swap_yaml_proxies_to_env_upstreams() -> None:
     data = yaml.safe_load((DOCKER / "llama-swap.yaml").read_text(encoding="utf-8"))
     models = data["models"]
-    assert "ls_comfyui" in models
-    assert "qwen38-chat" in models
-    assert "${env.LLAMA_CPP_URL}" in str(models["qwen38-chat"]["proxy"])
-    assert "${env.COMFYUI_URL}" in str(models["ls_comfyui"]["proxy"])
+    assert "comfyui_auto" in models
+    assert "qwen35-voice" in models
+    assert "qwen38-chat" not in models
+    assert "${env.LLAMA_CPP_URL}" in str(models["qwen35-voice"]["proxy"])
+    assert "${env.COMFYUI_URL}" in str(models["comfyui_auto"]["proxy"])
     group = data["routing"]["router"]["settings"]["groups"]["gpu-exclusive"]
     assert group["exclusive"] is True
-    assert "ls_comfyui" in group["members"]
-    chat_cmd = models["qwen38-chat"]["cmd"]
-    assert "ensure-free" in chat_cmd
-    assert models["ls_comfyui"]["unlisted"] is True
-    assert "comfyui" in models["ls_comfyui"]["aliases"]
+    assert "comfyui_auto" in group["members"]
+    assert "qwen35-voice" not in group["members"]
+    assert "tts-heavy" not in group["members"]
+    voice_grp = data["routing"]["router"]["settings"]["groups"]["voice-stack"]
+    assert voice_grp["swap"] is False
+    assert "qwen35-voice" in voice_grp["members"]
+    assert "tts-heavy" in voice_grp["members"]
+    assert "tts-heavy" in models
+    assert "${env.VOICE_ENGINE_URL}" in str(models["tts-heavy"]["proxy"])
+    assert "index-tts2" in models["tts-heavy"]["aliases"]
+    chat_cmd = models["qwen35-voice"]["cmd"]
+    assert "swap-start.sh" in chat_cmd
+    assert "ls_comfyui" in models["comfyui_auto"]["cmd"]
+    assert "qwen35-code" in models["qwen35-voice"]["aliases"]
+    assert "swap-stop.sh" in models["qwen35-voice"]["cmdStop"]
+    assert "qwen35-voice" in models["qwen35-voice"]["cmdStop"]
+    assert "'{}'" not in models["qwen35-voice"]["cmdStop"]
+    assert "swap-stop.sh" in models["comfyui_auto"]["cmdStop"]
+    assert models["comfyui_auto"]["unlisted"] is True
+    assert "comfyui" in models["comfyui_auto"]["aliases"]
+    assert "ls_comfyui" in models["comfyui_auto"]["aliases"]
 
 
 def test_docker_comfy_keepalive_does_not_start_local_comfy() -> None:
@@ -79,12 +96,16 @@ def test_dockerfile_installs_llama_swap_and_inglenook() -> None:
     assert "llama-swap" in text
     assert "entrypoint.sh" in text
     assert "EXPOSE 9292" in text
+    assert "llama-unload.sh" in text
+    assert "swap-start.sh" in text
+    assert "swap-stop.sh" in text
 
 
 def test_env_example_documents_upstream_urls() -> None:
     text = (ROOT / ".env.example").read_text(encoding="utf-8")
     assert "COMFYUI_URL=" in text
     assert "LLAMA_CPP_URL=" in text
+    assert "VOICE_ENGINE_URL=" in text
 
 
 def test_docker_gate_yaml_loads_with_upstream_env(
@@ -93,6 +114,7 @@ def test_docker_gate_yaml_loads_with_upstream_env(
     monkeypatch.setenv("COMFYUI_URL", "http://gpu.lan:8188")
     monkeypatch.setenv("LLAMA_CPP_URL", "http://gpu.lan:8198")
     cfg = load_config(DOCKER / "gate.yaml")
-    assert cfg.registry["qwen38-chat"].base_url == "http://gpu.lan:8198"
+    assert cfg.registry["qwen35-voice"].base_url == "http://gpu.lan:8198"
+    assert cfg.registry["qwen35-chat"].base_url == "http://gpu.lan:8198"
     assert cfg.registry["ls_comfyui"].base_url == "http://gpu.lan:8188"
     assert cfg.policy.occupancy.value == "weights"

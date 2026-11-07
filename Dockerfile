@@ -39,6 +39,9 @@ COPY deploy/docker/gate.yaml /etc/inglenook/gate.yaml
 COPY deploy/docker/llama-swap.yaml /etc/inglenook/llama-swap.yaml
 COPY docker/Caddyfile.template /etc/inglenook/Caddyfile
 COPY deploy/scripts/comfy-free.sh /etc/inglenook/scripts/comfy-free.sh
+COPY deploy/scripts/llama-unload.sh /etc/inglenook/scripts/llama-unload.sh
+COPY deploy/scripts/swap-start.sh /etc/inglenook/scripts/swap-start.sh
+COPY deploy/scripts/swap-stop.sh /etc/inglenook/scripts/swap-stop.sh
 COPY deploy/docker/comfy-keepalive.sh /etc/inglenook/scripts/comfy-keepalive.sh
 COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
 

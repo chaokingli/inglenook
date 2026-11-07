@@ -77,6 +77,24 @@ def _post(
         return exc.code, body
 
 
+def test_workflows_roundtrip(server: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    root = tmp_path / "wf"
+    monkeypatch.setenv("INGLENOOK_WORKFLOWS", str(root))
+    status, body = _post(
+        f"{server}/v1/workflows",
+        {
+            "kind": "image",
+            "name": "from-http",
+            "workflow": {"1": {"class_type": "SaveImage", "inputs": {}}},
+        },
+    )
+    assert status == 200
+    listed = _get(f"{server}/v1/workflows")
+    assert listed[0] == 200
+    ids = {row["id"] for row in listed[1]["data"]}
+    assert "from-http" in ids
+
+
 def test_status_endpoint(server: str) -> None:
     status, body = _get(f"{server}/v1/status")
     assert status == 200

@@ -1,6 +1,25 @@
 # API workflows
 
-Put Comfy **API Format** JSON here. These files are what OpenWebUI and SillyTavern POST to `/prompt`.
+Put Comfy **API Format** JSON here. These files are templates for OpenWebUI and SillyTavern to POST to `/prompt`.
+
+Drop files into:
+
+| Directory | Use |
+|-----------|-----|
+| `image/` | txt2img / i2i |
+| `video/` | t2v / i2v |
+| `incoming/` | scratch; move into image/ or video/ after checking |
+
+Upload over the LAN (split proxy → gate):
+
+```bash
+curl -sS http://<GPU-LAN-IP>:9293/inglenook/workflows \
+  -H 'Content-Type: application/json' \
+  -d '{"kind":"image","name":"my-t2i","workflow":{ ... API JSON ... }}'
+curl -sS http://<GPU-LAN-IP>:9293/inglenook/workflows
+```
+
+Localhost: `http://127.0.0.1:9300/v1/workflows`. Graphs must not contain LLM / llama nodes.
 
 | File | Used by |
 |------|---------|

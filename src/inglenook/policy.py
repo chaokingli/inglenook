@@ -98,8 +98,14 @@ def _exclusive_others(
             continue
         if backend.group != policy.exclusive_group:
             continue
+        if _coexist(requester, backend):
+            continue
         others.append(backend)
     return others
+
+
+def _coexist(left: Backend, right: Backend) -> bool:
+    return right.name in left.coexist_with and left.name in right.coexist_with
 
 
 def _unknown_warning(

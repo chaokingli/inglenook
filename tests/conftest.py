@@ -53,6 +53,22 @@ def tts() -> Backend:
         unload_kind="command",
         unload_command=("true",),
         priority=10,
+        coexist_with=("qwen35-voice",),
+    )
+
+
+@pytest.fixture
+def voice() -> Backend:
+    return Backend(
+        name="qwen35-voice",
+        need_mb=8000,
+        headroom_mb=400,
+        role=Role.CHAT,
+        group="gpu-exclusive",
+        unload_kind="llama-unload",
+        base_url="http://127.0.0.1:5801",
+        priority=40,
+        coexist_with=("tts-heavy",),
     )
 
 

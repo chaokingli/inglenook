@@ -43,6 +43,31 @@ _WEIGHT_STATUSES = frozenset({"loaded", "loading"})
 JsonGet = Callable[[str], Mapping[str, Any] | BaseException]
 
 
+def _model_status_value(item: Mapping[str, Any]) -> str:
+    status = item.get("status")
+    if isinstance(status, Mapping):
+        return str(status.get("value", "")).lower()
+    if isinstance(status, str):
+        return status.lower()
+    return ""
+
+
+def llama_loaded_model_ids(payload: Mapping[str, Any]) -> tuple[str, ...]:
+    data = payload.get("data")
+    if not isinstance(data, list):
+        return ()
+    names: list[str] = []
+    for item in data:
+        if not isinstance(item, Mapping):
+            continue
+        model_id = item.get("id")
+        if not isinstance(model_id, str) or not model_id:
+            continue
+        if _model_status_value(item) in _WEIGHT_STATUSES:
+            names.append(model_id)
+    return tuple(names)
+
+
 def llama_models_have_weights(payload: Mapping[str, Any]) -> bool | None:
     data = payload.get("data")
     if not isinstance(data, list):
@@ -51,12 +76,7 @@ def llama_models_have_weights(payload: Mapping[str, Any]) -> bool | None:
     for item in data:
         if not isinstance(item, Mapping):
             continue
-        status = item.get("status")
-        value = ""
-        if isinstance(status, Mapping):
-            value = str(status.get("value", "")).lower()
-        elif isinstance(status, str):
-            value = status.lower()
+        value = _model_status_value(item)
         if not value:
             continue
         saw_status = True

@@ -108,6 +108,15 @@ def _parse_backend(name: str, body: dict[str, Any]) -> Backend:
         unload_command = tuple(command)
     else:
         raise ConfigError("unload_command must be a list of strings")
+    coexist_raw = body.get("coexist_with", [])
+    if not coexist_raw:
+        coexist_with: tuple[str, ...] = ()
+    elif isinstance(coexist_raw, (list, tuple)) and all(
+        isinstance(item, str) for item in coexist_raw
+    ):
+        coexist_with = tuple(coexist_raw)
+    else:
+        raise ConfigError("coexist_with must be a list of strings")
     return Backend(
         name=name,
         need_mb=need_mb,
@@ -120,6 +129,8 @@ def _parse_backend(name: str, body: dict[str, Any]) -> Backend:
         busy_probe=busy_probe,
         base_url=base_url,
         priority=_int(body.get("priority", 50), "priority"),
+        coexist_with=coexist_with,
+        catch_all=bool(body.get("catch_all", False)),
     )
 
 

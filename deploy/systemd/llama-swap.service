@@ -7,8 +7,12 @@ Wants=network-online.target
 Type=simple
 WorkingDirectory=%h/dev/inglenook
 Environment=PYTHONPATH=%h/dev/inglenook/src
+Environment=INGLENOOK_HOME=%h/dev/inglenook
+Environment=INGLENOOK_CONFIG=%h/dev/inglenook/deploy/gate.yaml
+Environment=LLAMA_CPP_URL=http://127.0.0.1:8198
+Environment=COMFY_URL=http://127.0.0.1:8188
 EnvironmentFile=-%h/.config/inglenook/env
-ExecStart=%h/.local/bin/llama-swap --config %h/dev/inglenook/deploy/llama-swap.yaml --listen 0.0.0.0:9292
+ExecStart=%h/dev/inglenook/deploy/scripts/swap-front.py --listen 0.0.0.0:9292 --backend 127.0.0.1:9291 --swap-bin %h/.local/bin/llama-swap --swap-config %h/dev/inglenook/deploy/llama-swap.yaml --swap-listen 127.0.0.1:9291
 Restart=on-failure
 RestartSec=5
 TimeoutStopSec=30

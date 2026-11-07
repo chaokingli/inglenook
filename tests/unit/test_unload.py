@@ -1,7 +1,13 @@
 from __future__ import annotations
 
 from inglenook.types import Backend, Role
-from inglenook.unload import CommandUnloader, comfy_free_payload, llama_unload_url
+from inglenook.unload import (
+    CommandUnloader,
+    comfy_free_payload,
+    llama_loaded_model_ids,
+    llama_unload_payload,
+    llama_unload_url,
+)
 
 
 def test_comfy_free_payload() -> None:
@@ -59,6 +65,7 @@ def test_command_unloader_posts_comfy_free() -> None:
         unload_kind="comfy-free",
         base_url="http://127.0.0.1:8188",
     )
+
     def capture(url: str, payload: object) -> None:
         posted.append((url, payload))
 
@@ -66,16 +73,63 @@ def test_command_unloader_posts_comfy_free() -> None:
     assert posted == [("http://127.0.0.1:8188/api/free", comfy_free_payload())]
 
 
+def test_llama_unload_payload_includes_model_id() -> None:
+    assert llama_unload_payload("qwen35-code") == {"model": "qwen35-code"}
+
+
+def test_llama_loaded_model_ids_reads_router_status() -> None:
+    payload = {
+        "data": [
+            {"id": "qwen38-chat", "status": {"value": "unloaded"}},
+            {"id": "qwen35-code", "status": {"value": "loaded"}},
+            {"id": "qwen27-chat", "status": "loading"},
+        ]
+    }
+    assert llama_loaded_model_ids(payload) == ("qwen35-code", "qwen27-chat")
+
+
 def test_command_unloader_posts_llama_unload() -> None:
-    posted: list[str] = []
+    posted: list[tuple[str, object]] = []
     backend = Backend(
         name="qwen38-chat",
         need_mb=1,
         unload_kind="llama-unload",
         base_url="http://127.0.0.1:5801",
     )
-    CommandUnloader(http_post=lambda url, payload: posted.append(url)).unload(backend)
-    assert posted == ["http://127.0.0.1:5801/models/unload"]
+    CommandUnloader(
+        http_post=lambda url, payload: posted.append((url, payload)),
+        json_get=lambda _url: ConnectionError("down"),
+    ).unload(backend)
+    assert posted == [
+        ("http://127.0.0.1:5801/models/unload", llama_unload_payload("qwen38-chat"))
+    ]
+
+
+def test_command_unloader_unloads_loaded_router_models() -> None:
+    posted: list[tuple[str, object]] = []
+    backend = Backend(
+        name="qwen38-chat",
+        need_mb=1,
+        unload_kind="llama-unload",
+        base_url="http://127.0.0.1:8198",
+    )
+
+    def json_get(url: str) -> dict[str, object]:
+        assert url.endswith("/models")
+        return {
+            "data": [
+                {"id": "qwen38-chat", "status": {"value": "unloaded"}},
+                {"id": "qwen35-code", "status": {"value": "loaded"}},
+            ]
+        }
+
+    CommandUnloader(
+        http_post=lambda url, payload: posted.append((url, payload)),
+        json_get=json_get,
+    ).unload(backend)
+    assert posted == [
+        ("http://127.0.0.1:8198/models/unload", llama_unload_payload("qwen35-code"))
+    ]
 
 
 def test_command_unloader_posts_remote_comfy_free() -> None:

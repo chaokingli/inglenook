@@ -6,6 +6,7 @@ from inglenook.probes import (
     comfy_is_busy,
     comfy_vram_free_ratio,
     llama_is_reachable,
+    llama_loaded_model_ids,
     llama_models_have_weights,
     llama_props_have_weights,
     llama_weights_loaded,
@@ -78,9 +79,7 @@ def test_llama_is_reachable_uses_health_fetcher() -> None:
     )
     assert llama_is_reachable(backend, fetcher=lambda url: (200, "ok")) is True
     assert llama_is_reachable(backend, fetcher=lambda url: (500, "no")) is False
-    down = llama_is_reachable(
-        backend, fetcher=lambda url: ConnectionError("down")
-    )
+    down = llama_is_reachable(backend, fetcher=lambda url: ConnectionError("down"))
     assert down is False
 
 
@@ -104,6 +103,9 @@ def test_llama_models_have_weights_from_router_status() -> None:
     assert llama_models_have_weights(unloaded) is False
     assert llama_models_have_weights(openai_only) is None
     assert llama_models_have_weights({}) is None
+    assert llama_loaded_model_ids(loaded) == ("qwen38-chat",)
+    assert llama_loaded_model_ids(unloaded) == ()
+    assert llama_loaded_model_ids(openai_only) == ()
 
 
 def test_llama_props_have_weights_from_sleep_flag() -> None:
@@ -157,7 +159,5 @@ def test_llama_weights_loaded_false_when_probes_fail() -> None:
         role=Role.CHAT,
         base_url="http://192.168.1.10:8198",
     )
-    down = llama_weights_loaded(
-        backend, json_get=lambda _url: ConnectionError("down")
-    )
+    down = llama_weights_loaded(backend, json_get=lambda _url: ConnectionError("down"))
     assert down is False

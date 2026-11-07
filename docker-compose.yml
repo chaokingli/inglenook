@@ -18,6 +18,7 @@ services:
     environment:
       COMFYUI_URL: ${COMFYUI_URL:?set COMFYUI_URL in .env}
       LLAMA_CPP_URL: ${LLAMA_CPP_URL:?set LLAMA_CPP_URL in .env}
+      VOICE_ENGINE_URL: ${VOICE_ENGINE_URL:-http://127.0.0.1:8210}
       INGLENOOK_VRAM_SOURCE: ${INGLENOOK_VRAM_SOURCE:-comfy}
       LLAMA_SWAP_LISTEN: 0.0.0.0:9292
     logging:

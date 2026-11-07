@@ -176,6 +176,72 @@ def test_unload_order_is_tts_then_chat_then_comfy(
     assert plan.unload == ("tts-heavy", "qwen38-chat")
 
 
+def test_voice_and_tts_coexist_without_unload(
+    chat: Backend,
+    tts: Backend,
+    voice: Backend,
+    idle_vram: VramSnapshot,
+    policy: Policy,
+) -> None:
+    registry = {chat.name: chat, tts.name: tts, voice.name: voice}
+    plan = plan_ensure(
+        "tts-heavy",
+        registry,
+        idle_vram,
+        loaded=frozenset({"qwen35-voice"}),
+        busy=frozenset(),
+        policy=policy,
+    )
+    assert plan.kind is DecisionKind.ADMIT
+    assert plan.unload == ()
+
+
+def test_full_chat_still_unloads_tts(
+    chat: Backend,
+    tts: Backend,
+    voice: Backend,
+    tight_vram: VramSnapshot,
+    policy: Policy,
+) -> None:
+    registry = {chat.name: chat, tts.name: tts, voice.name: voice}
+    plan = plan_ensure(
+        "qwen38-chat",
+        registry,
+        tight_vram,
+        loaded=frozenset({"tts-heavy"}),
+        busy=frozenset(),
+        policy=policy,
+    )
+    assert plan.kind is DecisionKind.UNLOAD
+    assert plan.unload == ("tts-heavy",)
+
+
+def test_comfy_unloads_voice_stack(
+    chat: Backend,
+    comfy: Backend,
+    tts: Backend,
+    voice: Backend,
+    tight_vram: VramSnapshot,
+    policy: Policy,
+) -> None:
+    registry = {
+        chat.name: chat,
+        comfy.name: comfy,
+        tts.name: tts,
+        voice.name: voice,
+    }
+    plan = plan_ensure(
+        "ls_comfyui",
+        registry,
+        tight_vram,
+        loaded=frozenset({"qwen35-voice", "tts-heavy"}),
+        busy=frozenset(),
+        policy=policy,
+    )
+    assert plan.kind is DecisionKind.UNLOAD
+    assert plan.unload == ("tts-heavy", "qwen35-voice")
+
+
 def test_cpu_group_is_not_unloaded_for_gpu_request(
     registry: dict[str, Backend],
     idle_vram: VramSnapshot,

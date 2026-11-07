@@ -69,6 +69,8 @@ class Backend:
     busy_probe: str = "none"
     base_url: str = ""
     priority: int = 50
+    coexist_with: tuple[str, ...] = ()
+    catch_all: bool = False
 
     def __post_init__(self) -> None:
         parse_backend_name(self.name)

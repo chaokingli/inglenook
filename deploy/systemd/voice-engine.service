@@ -1,0 +1,18 @@
+[Unit]
+Description=voice-engine IndexTTS-2.5 (localhost :8210)
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/dev/voice-engine
+Environment=VOICE_ENGINE_HOME=%h/dev/voice-engine
+Environment=VOICE_ENGINE_HOST=127.0.0.1
+Environment=VOICE_ENGINE_PORT=8210
+ExecStart=%h/dev/voice-engine/scripts/serve.sh
+ExecStop=%h/dev/voice-engine/scripts/stop.sh
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+
+[Install]
+WantedBy=default.target

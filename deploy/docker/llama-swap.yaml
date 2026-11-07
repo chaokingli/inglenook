@@ -21,22 +21,15 @@ upstream:
     - ^\/ws$|^\/api\/jobs$
 
 models:
-  qwen38-chat:
-    name: "Qwen 27B chat"
+  qwen35-voice:
+    name: "Qwen3.6-35B-A3B voice (cpu-moe)"
     proxy: "${env.LLAMA_CPP_URL}"
     aliases:
-      - qwen38-novel
-      - qwen38-code
-      - qwen27-chat
-      - qwen27-novel
-      - qwen27-code
-    cmd: |
-      set -euo pipefail
-      inglenook --config /etc/inglenook/gate.yaml ensure-free --backend ${MODEL_ID}
-      exec tail -f /dev/null
-    cmdStop: |
-      curl -fsS --max-time 10 -X POST "${env.LLAMA_CPP_URL}/models/unload" \
-        -H 'Content-Type: application/json' -d '{}' || true
+      - qwen35-chat
+      - qwen35-novel
+      - qwen35-code
+    cmd: /etc/inglenook/scripts/swap-start.sh qwen35-voice
+    cmdStop: /etc/inglenook/scripts/swap-stop.sh qwen35-voice
     ttl: 600
     timeouts:
       responseHeader: 120
@@ -44,10 +37,11 @@ models:
       in: [text, image]
       out: [text]
 
-  ls_comfyui:
+  comfyui_auto:
     unlisted: true
     aliases:
       - comfyui
+      - ls_comfyui
     proxy: "${env.COMFYUI_URL}"
     checkEndpoint: /system_stats
     ttl: 0
@@ -59,21 +53,41 @@ models:
       keepalive: 0
       responseHeader: 900
       idleConn: 900
-    cmd: |
-      set -euo pipefail
-      inglenook --config /etc/inglenook/gate.yaml ensure-free --backend ${MODEL_ID}
-      exec /etc/inglenook/scripts/comfy-keepalive.sh
-    cmdStop: |
-      /etc/inglenook/scripts/comfy-free.sh
+    cmd: /etc/inglenook/scripts/swap-start.sh ls_comfyui
+    cmdStop: /etc/inglenook/scripts/swap-stop.sh ls_comfyui
+
+  tts-heavy:
+    name: "voice-engine TTS"
+    proxy: "${env.VOICE_ENGINE_URL}"
+    aliases:
+      - indextts2
+      - index-tts2
+      - index-tts-2
+      - tts
+    checkEndpoint: /health
+    ttl: 0
+    timeouts:
+      connect: 30
+      responseHeader: 180
+    cmd: /etc/inglenook/scripts/swap-start.sh tts-heavy
+    cmdStop: /etc/inglenook/scripts/swap-stop.sh tts-heavy
+    capabilities:
+      in: [text]
+      out: [audio]
 
 routing:
   router:
     use: group
     settings:
       groups:
+        voice-stack:
+          swap: false
+          exclusive: true
+          members:
+            - qwen35-voice
+            - tts-heavy
         gpu-exclusive:
           swap: true
           exclusive: true
           members:
-            - qwen38-chat
-            - ls_comfyui
+            - comfyui_auto

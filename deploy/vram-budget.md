@@ -1,16 +1,22 @@
 # VRAM budget — RTX 5070 Ti (16303 MiB)
 
-Measured 2026-08-20 while planning. Re-run `inglenook status` after each preset change.
+Measured 2026-08-20 while planning; live switch 2026-08-21 (see `deploy/live-switch-report.md`). Re-run `inglenook status` after each preset change.
 
 | Role | What was running | used MiB | free MiB | `need_mb` in gate.yaml |
 |------|-------------------|----------|----------|------------------------|
-| System idle (approx) | nothing registered | ~800 | ~15500 | idle_used_mb = 2500 |
-| Chat 27B Q4_K (qwen38-chat) | llama-server on :8198 | 14648 | 1234 | 14600 + 800 headroom |
-| Chat 27B longer ctx (novel/code) | same weights, larger KV | 14800–15000 (est.) | <1500 | 14800–15000 |
-| ComfyUI empty | process up, weights freed | wait until used < 2500 | — | /free then poll |
-| Comfy video (H3 / WAN) | almost full card | ~15000+ | exclusive | 15000 |
-| Heavy TTS (future) | Chatterbox / IndexTTS | 2000–8000 | exclusive | 4000 |
+| System idle (approx) | nothing registered | ~18–800 | ~15500+ | idle_used_mb = 2500 |
+| Chat 35B Q6_K (qwen35-code) | llama.cpp router on :8198 | 14730–15014 (live 14859–14977) | 868–1128 (live 905–1023) | 14500 + 400 headroom |
+| Chat 27B Q4_K (qwen38-chat) | llama-server on :8198 | 14648 | 1234 | same chat slot |
+| ComfyUI empty | process up, weights freed | ~390–484 | ~15398–15492 | used < idle_used_mb |
+| Comfy SDXL (weights resident) | python on :8188 | **7108** (live, 512² / 2 step) | **8774** | residual occupancy |
+| Comfy video (H3 / WAN) | almost full card | ~15000+ | exclusive | 14000 + 400 headroom |
+| Heavy TTS (`tts-heavy`) | voice-engine / IndexTTS-2.5 | 2000–8000 (measure after first load) | coreside with `qwen35-voice` | 4000 |
+| Chat voice (`qwen35-voice`) | 35B-A3B Q6 + `cpu-moe` + `fit-target=8192` + ctx 64k | measure on first warmup | coreside with TTS | 8000 |
 | CPU Whisper / Kokoro | no GPU | 0 | n/a | always-cpu group |
+
+`required_free_mb` must stay below post-`/api/free` free (~15398) and empty-card free (~15492). 14600+800 blocked admission by 2 MiB.
+
+Live gate timings (2026-08-21): `ensure-free ls_comfyui` with 35B resident **585–639 ms** (14977 → 390 MiB); `ensure-free qwen38-chat` with SDXL resident **1257 ms** (7108 → 484 MiB). llama-swap exclusive-group swap still waited the full `unloadTimeout` (180 s) because keepalive `tail` was not reaped — that is a process bug, not a budget miss.
 
 ## Policy
 

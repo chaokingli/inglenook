@@ -10,8 +10,15 @@ from urllib.parse import urlparse
 from inglenook.errors import InglenookError
 from inglenook.runtime import read_vram, run_ensure_free
 from inglenook.types import parse_backend_name
+from inglenook.workflows import (
+    WorkflowError,
+    list_workflows,
+    save_workflow,
+    workflows_root,
+)
 
 MAX_BODY = 8192
+MAX_WORKFLOW_BODY = 8 * 1024 * 1024
 ALLOWED_HOSTS = frozenset({"127.0.0.1", "localhost"})
 _ENSURE_LOCK = threading.Lock()
 
@@ -43,21 +50,41 @@ def _make_handler(config_path: Path) -> type[BaseHTTPRequestHandler]:
             return
 
         def do_GET(self) -> None:
-            if _path(self.path) != "/v1/status":
-                self._send(404, {"error": "not found"})
+            path = _path(self.path)
+            if path == "/v1/status":
+                snap = read_vram()
+                self._send(
+                    200,
+                    {
+                        "total_mb": snap.total_mb,
+                        "used_mb": snap.used_mb,
+                        "free_mb": snap.free_mb,
+                    },
+                )
                 return
-            snap = read_vram()
-            self._send(
-                200,
-                {
-                    "total_mb": snap.total_mb,
-                    "used_mb": snap.used_mb,
-                    "free_mb": snap.free_mb,
-                },
-            )
+            if path == "/v1/workflows":
+                root = workflows_root(config_path)
+                self._send(200, {"data": list_workflows(root), "root": str(root)})
+                return
+            self._send(404, {"error": "not found"})
 
         def do_POST(self) -> None:
-            if _path(self.path) != "/v1/ensure-free":
+            path = _path(self.path)
+            if path == "/v1/workflows":
+                payload = self._read_json(max_body=MAX_WORKFLOW_BODY)
+                if payload is None:
+                    return
+                kind = str(payload.get("kind", ""))
+                name = str(payload.get("name", ""))
+                graph = payload.get("workflow", payload.get("prompt"))
+                try:
+                    dest = save_workflow(workflows_root(config_path), kind, name, graph)
+                except (WorkflowError, json.JSONDecodeError, TypeError, ValueError) as exc:
+                    self._send(400, {"error": str(exc)})
+                    return
+                self._send(200, {"saved": str(dest), "kind": kind, "name": dest.name})
+                return
+            if path != "/v1/ensure-free":
                 self._send(404, {"error": "not found"})
                 return
             payload = self._read_json()
@@ -78,13 +105,13 @@ def _make_handler(config_path: Path) -> type[BaseHTTPRequestHandler]:
             code = 200 if result.admitted else 503
             self._send(code, result.__dict__)
 
-        def _read_json(self) -> dict[str, Any] | None:
+        def _read_json(self, max_body: int = MAX_BODY) -> dict[str, Any] | None:
             try:
                 length = int(self.headers.get("Content-Length", "0"))
             except ValueError:
                 self._send(400, {"error": "invalid content-length"})
                 return None
-            if length < 0 or length > MAX_BODY:
+            if length < 0 or length > max_body:
                 self._send(413, {"error": "payload too large"})
                 return None
             raw = self.rfile.read(length)

@@ -17,18 +17,30 @@ policy:
   stop_unknown: false
 
 backends:
-  qwen38-chat:
-    need_mb: 14600
-    headroom_mb: 800
+  qwen35-chat:
+    need_mb: 14500
+    headroom_mb: 400
     role: chat
     group: gpu-exclusive
     unload_kind: llama-unload
     busy_probe: none
     base_url: ${LLAMA_CPP_URL}
     priority: 50
+    catch_all: true
+  qwen35-voice:
+    need_mb: 8000
+    headroom_mb: 400
+    role: chat
+    group: gpu-exclusive
+    unload_kind: llama-unload
+    busy_probe: none
+    base_url: ${LLAMA_CPP_URL}
+    priority: 40
+    coexist_with:
+      - tts-heavy
   ls_comfyui:
-    need_mb: 15000
-    headroom_mb: 800
+    need_mb: 14000
+    headroom_mb: 400
     role: comfy
     group: gpu-exclusive
     persistent: true
@@ -36,3 +48,22 @@ backends:
     busy_probe: comfy-queue
     base_url: ${COMFYUI_URL}
     priority: 80
+  tts-heavy:
+    need_mb: 4000
+    headroom_mb: 500
+    role: tts
+    group: gpu-exclusive
+    unload_kind: command
+    unload_command:
+      - curl
+      - -sS
+      - -m
+      - "2"
+      - -X
+      - POST
+      - ${VOICE_ENGINE_URL:-http://127.0.0.1:8210}/control/shutdown
+    busy_probe: none
+    base_url: ${VOICE_ENGINE_URL:-http://127.0.0.1:8210}
+    priority: 10
+    coexist_with:
+      - qwen35-voice
